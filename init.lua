@@ -265,16 +265,92 @@ require('lazy').setup({
   -- See `:help gitsigns` to understand what the configuration keys do
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
-    opts = {
-      signs = {
-        add = { text = '+' },
-        change = { text = '~' },
-        delete = { text = '_' },
-        topdelete = { text = '‾' },
-        changedelete = { text = '~' },
-      },
-    },
+    config = function()
+      require('gitsigns').setup {
+        signs = {
+          add = { text = '+' },
+          change = { text = '~' },
+          delete = { text = '_' },
+          topdelete = { text = '‾' },
+          changedelete = { text = '~' },
+        },
+      }
+
+      vim.keymap.set('n', '<leader>gp', ':Gitsigns preview_hunk<CR>', {})
+      vim.keymap.set('n', '<leader>gt', ':Gitsigns toggle_current_line_blame<CR>', {})
+    end,
   },
+  {
+    'tpope/vim-fugitive',
+  },
+  {
+    'mfussenegger/nvim-lint',
+    config = function()
+      require('lint').linters_by_ft = {
+        javascript = { 'eslint' },
+        typescript = { 'eslint' },
+      }
+
+      vim.api.nvim_create_autocmd({ 'BufWritePost' }, {
+        callback = function()
+          require('lint').try_lint()
+        end,
+      })
+    end,
+  },
+  {
+    'mfussenegger/nvim-dap',
+    config = function()
+      local dap = require 'dap'
+
+      dap.adapters['pwa-node'] = {
+        type = 'server',
+        host = '127.0.0.1',
+        port = 8123,
+        executable = {
+          command = 'js-debug-adapter',
+        },
+      }
+
+      for _, language in ipairs { 'typescript', 'javascript' } do
+        dap.configurations[language] = {
+          {
+            type = 'pwa-node',
+            request = 'launch',
+            name = 'Launch file',
+            program = '${file}',
+            cwd = '${workspaceFolder}',
+            runtimeExecutable = 'node',
+          },
+        }
+      end
+    end,
+
+    vim.keymap.set('n', '<leader>db', '<cmd> DapToggleBreakpoint <CR>', { desc = 'Add breakpoint at line' }),
+    vim.keymap.set('n', '<leader>dr', '<cmd> DapContinue <CR>', { desc = 'Run or continue the debugger' }),
+  },
+  {
+    'rcarriga/nvim-dap-ui',
+    dependencies = {
+      'mfussenegger/nvim-dap',
+      'nvim-neotest/nvim-nio',
+    },
+    config = function()
+      local dap = require 'dap'
+      local dapui = require 'dapui'
+      require('dapui').setup()
+      dap.listeners.after.event_initialized['dapui-config'] = function()
+        dapui.open()
+      end
+      dap.listeners.after.event_terminated['dapui-config'] = function()
+        dapui.close()
+      end
+      dap.listeners.after.event_exited['dapui-config'] = function()
+        dapui.close()
+      end
+    end,
+  },
+  { 'mfussenegger/nvim-jdtls' },
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
@@ -479,7 +555,16 @@ require('lazy').setup({
       -- Automatically install LSPs and related tools to stdpath for Neovim
       -- Mason must be loaded before its dependents so we need to set it up here.
       -- NOTE: `opts = {}` is the same as calling `require('mason').setup({})`
-      { 'williamboman/mason.nvim', opts = {} },
+      {
+        'williamboman/mason.nvim',
+        opts = {
+          ensure_installed = {
+            'eslint-lsp',
+            'js-debug-adapter',
+            'typescript-language-server',
+          },
+        },
+      },
       'williamboman/mason-lspconfig.nvim',
       'WhoIsSethDaniel/mason-tool-installer.nvim',
 
@@ -693,6 +778,14 @@ require('lazy').setup({
               },
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
               -- diagnostics = { disable = { 'missing-fields' } },
+            },
+          },
+        },
+
+        tsserver = {
+          init_options = {
+            preferences = {
+              disableSuggestions = true,
             },
           },
         },
